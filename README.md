@@ -4,7 +4,7 @@ Koncepcja aplikacji ( Krystian Kenar 275626 ):
 Aplikacja będzie tworzyć zestawienia statystyk meczów drużyn piłki nożnej . Dane 
 będą pobierane bezpośrednio ze strony football-data.org poprzez API do aplikacji.
 Możliwości użytkowe aplikacji:
-- Pobranie z API strony i wyświetlenie wszystkich dostępnych zawodów
+- Pobranie danych z API strony
 - Wyświetlenie wszystkich drużyn dla poszczególnych zawodów
 - Wyświetlenie wszystkich meczów wybranej dostępnej drużyny
 - Wyświetlenie wszystkich meczów dla wybranego zawodnika
