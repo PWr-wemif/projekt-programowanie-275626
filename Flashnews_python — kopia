@@ -1,0 +1,116 @@
+import sys
+import requests
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QInputDialog
+
+api_token = "1086f2b5f3864c6293a660f88b8ff6f2"
+base_url = "https://api.football-data.org/v2/"
+
+headers = {
+    "X-Auth-Token": api_token,
+}
+
+class FootballApp(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle('Football Data App')
+        layout = QVBoxLayout()
+
+        def set_red_background(button):
+            button.setStyleSheet("background-color: rgba(255, 0, 0, 0.6);")
+
+        pobierz_zawody_button = QPushButton('Wyświetl wszystkie dostępne zawody')
+        set_red_background(pobierz_zawody_button)
+        pobierz_zawody_button.clicked.connect(self.show_all_competitions)
+
+        druzyny_button = QPushButton('Wyświetl wszystkie drużyny dla poszczególnych zawodów')
+        set_red_background(druzyny_button)
+        druzyny_button.clicked.connect(self.show_teams_for_competition)
+
+        mecze_druzyny_button = QPushButton('Wyświetl wszystkie mecze wybranej dostępnej drużyny')
+        set_red_background(mecze_druzyny_button)
+        mecze_druzyny_button.clicked.connect(self.show_matches_for_team)
+
+        mecze_zawodnika_button = QPushButton('Wyświetl wszystkie mecze dla wybranego zawodnika')
+        set_red_background(mecze_zawodnika_button)
+        mecze_zawodnika_button.clicked.connect(self.show_matches_for_player)
+
+        poprzednie_spotkania_button = QPushButton('Wyświetl poprzednie spotkania poszczególnych drużyn')
+        set_red_background(poprzednie_spotkania_button)
+        poprzednie_spotkania_button.clicked.connect(self.show_previous_matches_for_team)
+
+        layout.addWidget(pobierz_zawody_button)
+        layout.addWidget(druzyny_button)
+        layout.addWidget(mecze_druzyny_button)
+        layout.addWidget(mecze_zawodnika_button)
+        layout.addWidget(poprzednie_spotkania_button)
+
+        self.setLayout(layout)
+
+    def show_all_competitions(self):
+        url = base_url + "competitions"
+        response = requests.get(url, headers=headers)
+        competitions = response.json()["competitions"]
+
+        self.show_table(competitions, ["Competition ID", "Name"], "All Competitions")
+
+    def show_teams_for_competition(self):
+        competition_id, ok = QInputDialog.getText(self, 'Competition ID', 'Enter the competition ID:')
+        if ok:
+            url = base_url + f"competitions/{competition_id}/teams"
+            response = requests.get(url, headers=headers)
+            teams = response.json().get("teams", [])
+
+            self.show_table(teams, ["Team ID", "Name"], f'Teams for Competition ID {competition_id}')
+
+    def show_matches_for_team(self):
+        team_id, ok = QInputDialog.getText(self, 'Team ID', 'Enter the team ID:')
+        if ok:
+            url = base_url + f"teams/{team_id}/matches"
+            response = requests.get(url, headers=headers)
+            matches = response.json().get("matches", [])
+
+            self.show_table(matches, ["Match ID", "Date", "Status"], f'Matches for Team ID {team_id}')
+
+    def show_matches_for_player(self):
+        player_id, ok = QInputDialog.getText(self, 'Player ID', 'Enter the player ID:')
+        if ok:
+            url = base_url + f"players/{player_id}/matches"
+            response = requests.get(url, headers=headers)
+            matches = response.json().get("matches", [])
+
+            self.show_table(matches, ["Match ID", "Date", "Status"], f'Matches for Player ID {player_id}')
+
+    def show_previous_matches_for_team(self):
+        team_id, ok = QInputDialog.getText(self, 'Team ID', 'Enter the team ID:')
+        if ok:
+            url = base_url + f"teams/{team_id}/matches"
+            params = {"status": "FINISHED", "limit": 5}
+            response = requests.get(url, headers=headers, params=params)
+            matches = response.json().get("matches", [])
+
+            self.show_table(matches, ["Match ID", "Date", "Status"], f'Previous Matches for Team ID {team_id}')
+
+    def show_table(self, data, headers, title):
+        table = QTableWidget()
+        table.setColumnCount(len(headers))
+        table.setHorizontalHeaderLabels(headers)
+
+        for row_num, row_data in enumerate(data):
+            table.insertRow(row_num)
+            for col_num, col_data in enumerate(row_data):
+                item = QTableWidgetItem(str(col_data))
+                table.setItem(row_num, col_num, item)
+
+        table.resizeColumnsToContents()
+        table.setWindowTitle(title)
+        table.show()
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = FootballApp()
+    window.show()
+    sys.exit(app.exec())
