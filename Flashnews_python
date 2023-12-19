@@ -1,0 +1,261 @@
+import sys
+import requests
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QDialog, QLabel, QInputDialog
+
+api_token = "1086f2b5f3864c6293a660f88b8ff6f2"
+base_url = "https://api.football-data.org/v2/"
+
+headers = {
+    "X-Auth-Token": api_token,
+}
+
+class FootballApp(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle('Football Data App')
+        layout = QVBoxLayout()
+
+        def set_green_background(button):
+            button.setStyleSheet("background-color: rgba(0, 255, 0, 0.6);")
+
+        def set_red_background(button):
+            button.setStyleSheet("background-color: rgba(255, 0, 0, 0.6);")
+
+        pobierz_zawody_button = QPushButton('Wyświetl wszystkie dostępne zawody')
+        set_green_background(pobierz_zawody_button)
+        pobierz_zawody_button.clicked.connect(self.show_all_competitions)
+
+        druzyny_button = QPushButton('Wyświetl wszystkie drużyny dla poszczególnych zawodów')
+        set_red_background(druzyny_button)
+        # druzyny_button.clicked.connect(self.show_teams_for_competition_buttons)  # Commented out this line
+
+        mecze_druzyny_button = QPushButton('Wyświetl wszystkie mecze wybranej dostępnej drużyny')
+        set_red_background(mecze_druzyny_button)
+        mecze_druzyny_button.clicked.connect(self.show_matches_for_team)
+
+        mecze_zawodnika_button = QPushButton('Wyświetl wszystkie mecze dla wybranego zawodnika')
+        set_red_background(mecze_zawodnika_button)
+        mecze_zawodnika_button.clicked.connect(self.show_matches_for_player)
+
+        poprzednie_spotkania_button = QPushButton('Wyświetl poprzednie spotkania poszczególnych drużyn')
+        set_red_background(poprzednie_spotkania_button)
+        poprzednie_spotkania_button.clicked.connect(self.show_previous_matches_for_team)
+
+        players_button = QPushButton('Wyświetl wszystkich zawodników')
+        set_red_background(players_button)
+        players_button.clicked.connect(self.show_all_players)
+
+        layout.addWidget(pobierz_zawody_button)
+        layout.addWidget(druzyny_button)
+        layout.addWidget(mecze_druzyny_button)
+        layout.addWidget(mecze_zawodnika_button)
+        layout.addWidget(poprzednie_spotkania_button)
+        layout.addWidget(players_button)
+
+        self.setLayout(layout)
+        self.table = QTableWidget()
+
+    # Dodaj nową funkcję do uzyskiwania meczów dla danego zawodnika
+    def get_matches_for_player(self, player_id):
+        url = f"{base_url}players/{player_id}/matches?limit=5"
+        response = requests.get(url, headers=headers)
+        matches_data = response.json().get("matches", [])
+
+        matches_info = []
+        for match in matches_data:
+            match_id = match["id"]
+            date = match["utcDate"]
+            status = match["status"]
+            match_info = [match_id, date, status]
+            matches_info.append(match_info)
+
+        self.show_table_in_dialog(matches_info, ["Match ID", "Date", "Status"], "Matches for Player")
+
+    def show_previous_matches_for_team(self):
+        # Przykładowy kod do uzyskiwania poprzednich meczów dla drużyny
+        team_id, ok_pressed = QInputDialog.getInt(self, "Enter Team ID", "Team ID:")
+        if ok_pressed:
+            url = f"{base_url}teams/{team_id}/matches?status=FINISHED"
+            response = requests.get(url, headers=headers)
+            matches_data = response.json().get("matches", [])
+
+            matches_info = []
+            for match in matches_data:
+                match_id = match["id"]
+                date = match["utcDate"]
+                status = match["status"]
+                match_info = [match_id, date, status]
+                matches_info.append(match_info)
+
+            self.show_table_in_dialog(matches_info, ["Match ID", "Date", "Status"], "Previous Matches for Team")
+
+    def show_matches_for_player(self):
+        # Przykładowy kod do uzyskiwania meczów dla zawodnika
+        player_id, ok_pressed = QInputDialog.getInt(self, "Enter Player ID", "Player ID:")
+        if ok_pressed:
+            url = f"{base_url}players/{player_id}/matches?limit=5"
+            response = requests.get(url, headers=headers)
+            matches_data = response.json().get("matches", [])
+
+            matches_info = []
+            for match in matches_data:
+                match_id = match["id"]
+                date = match["utcDate"]
+                status = match["status"]
+                match_info = [match_id, date, status]
+                matches_info.append(match_info)
+
+            self.show_table_in_dialog(matches_info, ["Match ID", "Date", "Status"], "Matches for Player")
+
+    def show_matches_for_team(self):
+        # Przykładowy kod do uzyskiwania meczów dla drużyny
+        team_id, ok_pressed = QInputDialog.getInt(self, "Enter Team ID", "Team ID:")
+        if ok_pressed:
+            url = f"{base_url}teams/{team_id}/matches?status=SCHEDULED"
+            response = requests.get(url, headers=headers)
+            matches_data = response.json().get("matches", [])
+
+            matches_info = []
+            for match in matches_data:
+                match_id = match["id"]
+                date = match["utcDate"]
+                status = match["status"]
+                match_info = [match_id, date, status]
+                matches_info.append(match_info)
+
+            self.show_table_in_dialog(matches_info, ["Match ID", "Date", "Status"], "Matches for Team")
+
+    def show_all_competitions(self):
+        url = base_url + "competitions"
+        response = requests.get(url, headers=headers)
+        competitions = response.json()["competitions"]
+
+        competitions_data = []
+        for competition in competitions:
+            competition_id = competition["id"]
+            competition_name = competition["name"]
+            competition_data = {"Competition ID": competition_id, "Name": competition_name}
+            competitions_data.append(competition_data)
+
+        self.show_table_in_dialog(competitions_data, ["Competition ID", "Name"], "All Competitions")
+
+    # Zaktualizuj funkcję show_all_players
+    def show_all_players(self):
+        url = base_url + "players"
+        response = requests.get(url, headers=headers)
+
+        try:
+            players = response.json().get("players", [])
+        except KeyError:
+            print("Error: Could not find 'players' key in the response.")
+            print("Response:", response.text)
+            return
+
+        # Aktualizuj dane o zawodnikach, aby zawierały identyfikator (id) zawodnika
+        players_data = [{"id": player.get("id"), "name": player.get("name")} for player in players]
+
+        self.show_players_buttons_dialog(players_data)
+
+    # Zaktualizuj funkcję show_players_buttons_dialog
+    def show_players_buttons_dialog(self, data):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("All Players")
+        layout = QVBoxLayout(dialog)
+
+        for player in data:
+            player_name = player.get("name", "Unknown Player")
+            player_id = player.get("id")
+            button = QPushButton(player_name)
+            button.clicked.connect(lambda _, player_id=player_id: self.get_matches_for_player(player_id))
+            layout.addWidget(button)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def show_player_details(self, player):
+        player_id = player.get("id")
+        url = base_url + f"persons/{player_id}"
+        response = requests.get(url, headers=headers)
+
+        try:
+            player_details = response.json()
+        except KeyError:
+            print("Error: Could not find details for the player.")
+            print("Response:", response.text)
+            return
+
+        # Utwórz okno dialogowe z informacjami o zawodniku
+        dialog = QDialog(self)
+        dialog.setWindowTitle(player_details.get("name"))
+        layout = QVBoxLayout(dialog)
+
+        # Dodaj etykiety z informacjami o zawodniku
+        for key, value in player_details.items():
+            label = QLabel(f"{key.capitalize()}: {value}")
+            layout.addWidget(label)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def show_table(self, data, headers, title):
+        self.table.clearContents()
+        self.table.setRowCount(len(data))
+        self.table.setColumnCount(len(headers))
+        self.table.setHorizontalHeaderLabels(headers)
+
+        for row_num, row_data in enumerate(data):
+            for col_num, col_data in enumerate(row_data.items()):
+                item = QTableWidgetItem(str(col_data[1]))
+                self.table.setItem(row_num, col_num, item)
+
+        self.table.resizeColumnsToContents()
+        self.table.setWindowTitle(title)
+        self.table.show()
+
+    def show_table_in_dialog(self, data, headers, title):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        layout = QVBoxLayout(dialog)
+        table = QTableWidget()
+
+        if data:
+            table.setRowCount(len(data))
+            table.setColumnCount(len(headers))
+            table.setHorizontalHeaderLabels(headers)
+
+            for row_num, row_data in enumerate(data):
+                for col_num, col_data in enumerate(row_data.items()):
+                    item = QTableWidgetItem(str(col_data[1]))
+                    table.setItem(row_num, col_num, item)
+
+            table.resizeColumnsToContents()
+            layout.addWidget(table)
+        else:
+            label = QLabel("Brak dostępnych danych.")
+            layout.addWidget(label)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def show_buttons_dialog(self, data, title, callback):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        layout = QVBoxLayout(dialog)
+
+        for item_data in data:
+            button = QPushButton(item_data)
+            button.clicked.connect(lambda _, item_data=item_data: callback(item_data))
+            layout.addWidget(button)
+
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = FootballApp()
+    window.show()
+    sys.exit(app.exec_())
