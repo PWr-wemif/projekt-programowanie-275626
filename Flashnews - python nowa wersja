@@ -1,0 +1,297 @@
+import sys
+import functools
+import requests
+from functools import partial
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QDialog, QLabel, \
+    QMessageBox, QGridLayout
+
+api_token = "1086f2b5f3864c6293a660f88b8ff6f2"
+base_url = "https://api.football-data.org/v4/"
+
+headers = {
+    "X-Auth-Token": api_token,
+}
+
+class FootballApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+        self.current_competition = None
+    def init_ui(self):
+        self.setWindowTitle('Football Data App')
+        layout = QVBoxLayout()
+
+        self.add_button('Wyświetl wszystkie dostępne zawody', self.show_all_competitions, layout, "green")
+    
+        self.setLayout(layout)
+        self.table = QTableWidget()
+
+    def add_button(self, title, method, layout, color):
+        button = QPushButton(title)
+        button.clicked.connect(method)
+        if color == 'green':
+            button.setStyleSheet("background-color: rgba(0, 255, 0, 0.6);")
+        elif color == 'red':
+            button.setStyleSheet("background-color: rgba(255, 0, 0, 0.6);")
+        layout.addWidget(button)
+    
+    def show_team_details(self, team_id):
+        team_data = self.get_team_details(team_id)
+
+        if isinstance(team_data, dict):
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Informacje o drużynie")
+            layout = QVBoxLayout(dialog)
+
+            squad_button = QPushButton("Skład")
+            squad_button.clicked.connect(functools.partial(self.show_team_squad, team_id))
+            layout.addWidget(squad_button)
+
+            team_info_button = QPushButton("Szczegóły drużyny")
+            team_info_button.clicked.connect(functools.partial(self.show_team_data_in_table, team_data))
+            layout.addWidget(team_info_button)
+
+            finished_matches_button = QPushButton("Zakończone mecze")
+            finished_matches_button.clicked.connect(functools.partial(self.show_previous_matches_for_team, team_id))
+            layout.addWidget(finished_matches_button)
+
+            scheduled_matches_button = QPushButton("Zaplanowane mecze")
+            scheduled_matches_button.clicked.connect(functools.partial(self.show_scheduled_matches_for_team, team_id))
+            layout.addWidget(scheduled_matches_button)
+
+            dialog.setLayout(layout)
+            dialog.exec()
+        else:
+            QMessageBox.information(self, "Informacja", "Nie znaleziono drużyny o podanym ID.")
+
+    def get_team_details(self, team_id):
+        url = f"{base_url}teams/{team_id}"
+        response = requests.get(url, headers=headers)
+    
+        if response.status_code == 200:
+            team_data = response.json()
+            return team_data
+        else:
+            QMessageBox.information(self, "Informacja", "Nie znaleziono drużyny o podanym ID.")
+            return None
+    def show_team_squad(self, team_id):
+        url = f"{base_url}teams/{team_id}"
+        response = requests.get(url, headers=headers)
+        team_data = response.json()
+        squad = team_data.get("squad", [])
+
+        if not squad:
+            QMessageBox.information(self, "Informacja", "Brak danych o składzie drużyny.")
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Skład Drużyny")
+        layout = QGridLayout(dialog)
+        num_columns = 3
+        row = 0
+        col = 0
+
+        for player in squad:
+            player_button = QPushButton(player["name"])
+            player_button.clicked.connect(partial(self.show_player_details, player))
+            layout.addWidget(player_button, row, col)
+
+            col += 1
+            if col == num_columns:
+                col = 0
+                row += 1
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+    def show_player_details(self, player):
+        player_info = f"Imię i Nazwisko: {player.get('name', '')}\n" \
+                    f"Pozycja: {player.get('position', '')}\n" \
+                    f"Narodowość: {player.get('nationality', '')}\n" \
+                    f"Data urodzenia: {player.get('dateOfBirth', '')}"
+        QMessageBox.information(self, "Informacje o Zawodniku", player_info)
+    def show_team_data_in_table(self, team_data):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Szczegóły Drużyny")
+        layout = QVBoxLayout(dialog)
+        table = QTableWidget()
+        dialog.resize(350, 200)
+
+        if not isinstance(team_data, dict):
+            QMessageBox.information(self, "Informacja", "Błędne dane o drużynie.")
+            return
+
+        team_info = team_data.get("name", "")
+        founded = team_data.get("founded", "")
+        venue = team_data.get("venue", "")
+        address = team_data.get("address", "")
+        website = team_data.get("website", "")
+
+        table.setRowCount(5)
+        table.setColumnCount(2)
+        table.setHorizontalHeaderLabels(["Atrybut", "Wartość"])
+
+        table.setItem(0, 0, QTableWidgetItem("Nazwa"))
+        table.setItem(0, 1, QTableWidgetItem(team_info))
+        table.setItem(1, 0, QTableWidgetItem("Założona"))
+        table.setItem(1, 1, QTableWidgetItem(str(founded)))
+        table.setItem(2, 0, QTableWidgetItem("Obiekt"))
+        table.setItem(2, 1, QTableWidgetItem(venue))
+        table.setItem(3, 0, QTableWidgetItem("Adres"))
+        table.setItem(3, 1, QTableWidgetItem(address))
+        table.setItem(4, 0, QTableWidgetItem("Strona internetowa"))
+        table.setItem(4, 1, QTableWidgetItem(website))
+
+        table.resizeColumnsToContents()
+        layout.addWidget(table)
+        dialog.setLayout(layout)
+        dialog.exec()
+    
+    def show_all_teams(self, event=None):
+        if self.current_competition:
+            competition_id = self.current_competition["id"]
+            url = f"{base_url}competitions/{competition_id}/teams"
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                teams_data = response.json().get("teams", [])
+                self.show_teams_as_buttons(teams_data)
+            else:
+                QMessageBox.information(self, "Błąd", f"Błąd {response.status_code}: {response.reason}")
+        else:
+            QMessageBox.information(self, "Informacja", "Wybierz najpierw konkurencję.")
+    def show_teams_as_buttons(self, teams_data):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Dostępne Drużyny")
+        dialog.resize(400, 400)
+        layout = QVBoxLayout(dialog)
+
+        for team in teams_data:
+            team_name = team.get("name", "")
+            button = QPushButton(team_name)
+            button.clicked.connect(functools.partial(self.show_team_details, team["id"]))
+            layout.addWidget(button)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+    def show_all_competitions(self):
+        url = base_url + "competitions"
+        response = requests.get(url, headers=headers)
+        competitions = response.json().get("competitions", [])
+
+        competitions_data = []
+        for competition in competitions:
+            competition_name = competition["name"]
+            competitions_data.append(competition)
+
+        self.show_buttons_dialog(competitions_data, "All Competitions", self.show_competition_details)
+
+    def show_competition_details(self, competition):
+        self.current_competition = competition
+        self.show_all_teams()
+
+    def show_previous_matches_for_team(self, team_id):
+        url = f"{base_url}teams/{team_id}/matches?status=FINISHED"
+        response = requests.get(url, headers=headers)
+        matches_data = response.json().get("matches", [])
+
+        matches_info = []
+        for match in matches_data:
+            date = match["utcDate"]
+            status = match["status"]
+            home_team = match["homeTeam"]["name"] if "homeTeam" in match else "Unknown"
+            away_team = match["awayTeam"]["name"] if "awayTeam" in match else "Unknown"
+            score = match["score"]
+            if score and "fullTime" in score:
+                home_score = score["fullTime"]["home"]
+                away_score = score["fullTime"]["away"]
+                score_str = f"{home_score} - {away_score}"
+            else:
+                score_str = "N/A"
+            match_info = [date, status, home_team, away_team, score_str]
+            matches_info.append(match_info)
+        matches_info.sort(key=lambda x: x[0], reverse=True)
+        self.show_table_in_dialog(matches_info, ["Date", "Status", "Home Team", "Away Team", "Score"],  f"Previous Matches for {team_id}")
+
+    def show_scheduled_matches_for_team(self, team_id):
+        url = f"{base_url}teams/{team_id}/matches?status=SCHEDULED"
+        response = requests.get(url, headers=headers)
+        matches_data = response.json().get("matches", [])
+
+        matches_info = []
+        for match in matches_data:
+            date = match["utcDate"]
+            status = match["status"]
+            home_team = match["homeTeam"]["name"] if "homeTeam" in match else "Unknown"
+            away_team = match["awayTeam"]["name"] if "awayTeam" in match else "Unknown"
+            match_info = [date, status, home_team, away_team]
+            matches_info.append(match_info)
+
+        self.show_table_in_dialog(matches_info, ["Date", "Status", "Home Team", "Away Team"], f"Scheduled Matches for Team {team_id}")
+
+        v_scroll_bar = self.table.verticalScrollBar()
+        v_scroll_bar.setSliderPosition(v_scroll_bar.minimum())
+        v_scroll_bar.sliderMoved.emit(v_scroll_bar.minimum())
+
+    def show_table(self, data, headers, title):
+        self.table.clearContents()
+        self.table.setRowCount(len(data))
+        self.table.setColumnCount(len(headers))
+        self.table.setHorizontalHeaderLabels(headers)
+
+        for row_num, row_data in enumerate(data):
+            for col_num, col_data in enumerate(row_data.items()):
+                item = QTableWidgetItem(str(col_data[1]))
+                self.table.setItem(row_num, col_num, item)
+
+        self.table.resizeColumnsToContents()
+        self.table.setWindowTitle(title)
+        self.table.show()
+
+    def show_table_in_dialog(self, data, headers, title):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        layout = QVBoxLayout(dialog)
+        table = QTableWidget()
+
+        if data:
+            table.setRowCount(len(data))
+            table.setColumnCount(len(headers))
+            table.setHorizontalHeaderLabels(headers)
+
+            for row_num, row_data in enumerate(data):
+                for col_num, col_data in enumerate(row_data):
+                    item = QTableWidgetItem(str(col_data))
+                    table.setItem(row_num, col_num, item)
+
+            table.resizeColumnsToContents()
+            table.setFixedSize(515, 250)
+            layout.addWidget(table)
+        else:
+            label = QLabel("Brak dostępnych danych.")
+            layout.addWidget(label)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+    def show_buttons_dialog(self, data, title, callback):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        layout = QVBoxLayout(dialog)
+        for competition in data:
+            button = QPushButton(competition["name"])
+            button.clicked.connect(functools.partial(callback, competition))
+            layout.addWidget(button)
+
+        if not data:
+            label = QLabel("No available data.")
+            layout.addWidget(label)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = FootballApp()
+    window.show()
+    sys.exit(app.exec())
